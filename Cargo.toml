@@ -1,0 +1,14 @@
+[package]
+name = "iroh-roq"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.93"
+async-channel = "2.3.1"
+futures-lite = "2.5.0"
+iroh = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+rtp = "0.11.0"
+tokio = { version = "1.41.1", features = ["full"] }
+tokio-util = "0.7.12"
+tracing = "0.1.41"
