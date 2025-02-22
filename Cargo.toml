@@ -13,3 +13,6 @@ tokio = { version = "1.41.1", features = ["full"] }
 tokio-util = "0.7.12"
 tracing = "0.1.41"
 webrtc-util = "0.9"
+
+[dev-dependencies]
+opus = "0.3.0"
