@@ -1,9 +1,11 @@
 mod receive_flow;
 mod send_flow;
+mod send_stream;
 mod session;
 
 pub use self::receive_flow::ReceiveFlow;
 pub use self::send_flow::SendFlow;
+pub use self::send_stream::SendStream;
 pub use self::session::Session;
 
 /// The ALPN used.

@@ -29,6 +29,11 @@ impl ReceiveFlow {
         }
     }
 
+    /// Returns the flow ID for this `ReceiveFlow`.
+    pub fn flow_id(&self) -> VarInt {
+        self.id
+    }
+
     /// Reads the next available RTP packet.
     pub async fn read_rtp(&mut self) -> Result<RtpPacket> {
         ensure!(!self.cancel_token.is_cancelled(), "closed");

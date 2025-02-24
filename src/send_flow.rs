@@ -8,6 +8,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use webrtc_util::marshal::{Marshal, MarshalSize};
 
+use crate::SendStream;
+
 /// The sending side of an RTP flow.
 #[derive(Clone, Debug)]
 pub struct SendFlow {
@@ -25,11 +27,18 @@ impl SendFlow {
         }
     }
 
-    /// Send the given RTP packet.
-    pub fn send_rtp(&self, packet: &RtpPacket) -> Result<()> {
-        ensure!(!self.cancel_token.is_cancelled());
+    /// Returns the flow ID for this `SendFlow`.
+    pub fn flow_id(&self) -> VarInt {
+        self.id
+    }
 
-        debug!(flow_id = %self.id, "send packet");
+    /// Send the given RTP packet.
+    ///
+    /// This will use the datagram based path.
+    pub fn send_rtp(&self, packet: &RtpPacket) -> Result<()> {
+        ensure!(!self.cancel_token.is_cancelled(), "flow is closed");
+
+        debug!(flow_id = %self.id, "send datagram RTP packet");
 
         let mut buf = BytesMut::new();
         self.id.encode(&mut buf);
@@ -42,6 +51,23 @@ impl SendFlow {
         self.conn.send_datagram(buf.freeze())?;
 
         Ok(())
+    }
+
+    /// Creates a new `SendStream`.
+    ///
+    /// This will use the stream based path.
+    pub async fn new_send_stream(&self) -> Result<SendStream> {
+        ensure!(!self.cancel_token.is_cancelled(), "flow is closed");
+
+        let stream = self.conn.open_uni().await?;
+
+        debug!(flow_id = %self.id, "opened send stream");
+
+        Ok(SendStream::new(
+            self.id,
+            stream,
+            self.cancel_token.child_token(),
+        ))
     }
 
     /// Close this flow
