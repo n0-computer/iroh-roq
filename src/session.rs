@@ -4,10 +4,9 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 use iroh::endpoint::{Connection, VarInt};
 use iroh_quinn_proto::coding::Codec;
-use n0_future::task::AbortOnDropHandle;
+use n0_future::task::{self, AbortOnDropHandle, JoinSet};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::sync::{mpsc, Mutex};
-use tokio::task::JoinSet;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace, warn};
@@ -42,7 +41,7 @@ impl Session {
         let receive_flows = Arc::new(Mutex::new(HashMap::new()));
         let cancel_token = CancellationToken::new();
         let fut = run(conn.clone(), cancel_token.clone(), receive_flows.clone());
-        let task = AbortOnDropHandle::new(tokio::task::spawn(fut));
+        let task = AbortOnDropHandle::new(task::spawn(fut));
 
         Self {
             conn,
@@ -198,7 +197,8 @@ async fn run(
                         });
                     }
                     Err(err) => {
-                        warn!("invalid incoming stream: {:?}", err);
+                        warn!("connection terminated: {:?}", err);
+                        break;
                     }
                 }
             }
@@ -237,7 +237,8 @@ async fn run(
                         }
                     }
                     Err(err) => {
-                        warn!("failed to read datagram: {:?}", err);
+                        warn!("connection terminated: {:?}", err);
+                        break;
                     }
                 }
             }
@@ -300,7 +301,7 @@ mod tests {
 
         let ep2_addr = ep2.node_addr().await?;
 
-        let _handle = tokio::task::spawn(async move {
+        let _handle = task::spawn(async move {
             while let Some(incoming) = ep2.accept().await {
                 if let Ok(connection) = incoming.await {
                     assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
@@ -354,7 +355,7 @@ mod tests {
 
         let ep2_addr = ep2.node_addr().await?;
 
-        let _handle = tokio::task::spawn(async move {
+        let _handle = task::spawn(async move {
             while let Some(incoming) = ep2.accept().await {
                 if let Ok(connection) = incoming.await {
                     assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
