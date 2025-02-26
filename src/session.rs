@@ -198,7 +198,8 @@ async fn run(
                         });
                     }
                     Err(err) => {
-                        warn!("invalid incoming stream: {:?}", err);
+                        warn!("connection terminated: {:?}", err);
+                        break;
                     }
                 }
             }
@@ -237,7 +238,8 @@ async fn run(
                         }
                     }
                     Err(err) => {
-                        warn!("failed to read datagram: {:?}", err);
+                        warn!("connection terminated: {:?}", err);
+                        break;
                     }
                 }
             }

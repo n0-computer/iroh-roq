@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.93"
-iroh = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+iroh = { version = "0.33", default-features = false }
 iroh-quinn-proto = "0.13.0"
 n0-future = "0.1.2"
 rtp = "0.11.0"
-tokio = { version = "1.41.1", features = ["full"] }
+tokio = { version = "1.41.1", features = ["sync"] }
 tokio-util = "0.7.12"
 tracing = "0.1.41"
 webrtc-util = "0.9"
