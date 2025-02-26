@@ -2,6 +2,13 @@
 name = "iroh-roq"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
+description = "RTP over iroh"
+license = "MIT OR Apache-2.0"
+authors = ["n0 team"]
+repository = "https://github.com/n0-computer/iroh-roq"
+
+rust-version = "1.81"
 
 [dependencies]
 anyhow = "1.0.93"

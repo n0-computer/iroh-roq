@@ -106,12 +106,14 @@ async fn test_stream_opus_packets() -> Result<()> {
 
         payload.truncate(size);
 
-        let mut header = rtp::header::Header::default();
-        header.sequence_number = num_chunk as _;
-        // TODO: figure out what this should be
-        header.timestamp = 0;
-        // The standard format of the fixed RTP data header is used (one marker bit).
-        header.marker = true;
+        let header = rtp::header::Header {
+            sequence_number: num_chunk as _,
+            // TODO: figure out what this should be
+            timestamp: 0,
+            // The standard format of the fixed RTP data header is used (one marker bit).
+            marker: true,
+            ..Default::default()
+        };
 
         let packet = RtpPacket {
             header,
