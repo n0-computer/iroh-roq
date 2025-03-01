@@ -13,7 +13,7 @@ pub struct SendStream {
     cancel_token: CancellationToken,
     /// Did we already send the flow id?
     /// This gets sent as the very first message, but we do this lazily
-    /// when sending out the first acutal packet.
+    /// when sending out the first actual packet.
     sent_flow_id: bool,
 }
 
