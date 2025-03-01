@@ -104,9 +104,14 @@ jobs:
         with:
           toolchain: ${{ matrix.channel }}
           targets: ${{ matrix.target.cargo_targets }}
+      - name: Install deps linux
+        if: ${{ contains(matrix.target.os, 'ubuntu') }}
+        run: |
+          apt update
+          apt install -y libssl-dev pkg-config cmake
       - name: Ensure musl support
         if: ${{ contains(matrix.cargo_targets, '-musl') }}
-        run: sudo apt-get install musl-tools -y
+        run: apt install musl-tools -y
       - uses: swatinem/rust-cache@v2
       - name: cargo test
         shell: bash
