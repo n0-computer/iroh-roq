@@ -1,13 +1,10 @@
-name: tests
+name: CI
 
 on:
   push:
     branches:
-      # This helps fill the caches properly, caches are not shared between PRs.
       - main
   pull_request:
-    branches:
-      - main
 
 env:
   MSRV: "1.81"
@@ -67,6 +64,8 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps --document-private-items
 
   test:
+    timeout-minutes: 30
+    name: Build & Test
     runs-on: ${{ matrix.target.os }}
     strategy:
       fail-fast: false
@@ -107,7 +106,7 @@ jobs:
           targets: ${{ matrix.target.toolchain }}
       - uses: swatinem/rust-cache@v2
       - name: cargo test
-        run: cargo test --locked --workspace --all-features --bins --tests --examples
+        run: cargo test --locked --workspace --all-features --all-targets
 
   check:
     runs-on: ubuntu-latest
