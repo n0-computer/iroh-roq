@@ -20,7 +20,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
       - name: cargo fmt
@@ -66,11 +66,11 @@ jobs:
   build_and_test:
     timeout-minutes: 30
     name: Build & Test
-    runs-on: ${{ matrix.target.os }}
+    runs-on: ${{ matrix.target.runner }}
     strategy:
       fail-fast: false
       matrix:
-        include:
+        target:
           - name: ubuntu-arm-latest
             os: ubuntu-latest
             target: linux-aarch64
@@ -99,11 +99,11 @@ jobs:
         channel:
           - "stable"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.channel }}
-          targets: ${{ matrix.target.toolchain }}
+          targets: ${{ matrix.target.cargo_targets }}
       - uses: swatinem/rust-cache@v2
       - name: cargo test
         run: cargo test --locked --workspace --all-features --all-targets
@@ -111,7 +111,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
       - name: cargo check
