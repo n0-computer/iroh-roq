@@ -108,7 +108,11 @@ jobs:
         if: ${{ contains(matrix.target.os, 'ubuntu') }}
         run: |
           apt update
-          apt install -y libssl-dev pkg-config cmake
+          apt install -y cmake
+      - name: Install deps macOS
+        if: ${{ contains(matrix.target.os, 'macOS') }}
+        run: |
+          brew install cmake
       - name: Ensure musl support
         if: ${{ contains(matrix.cargo_targets, '-musl') }}
         run: apt install musl-tools -y
