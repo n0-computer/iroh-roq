@@ -104,8 +104,12 @@ jobs:
         with:
           toolchain: ${{ matrix.channel }}
           targets: ${{ matrix.target.cargo_targets }}
+      - name: Ensure musl support
+        if: ${{ contains(matrix.cargo_targets, '-musl') }}
+        run: sudo apt-get install musl-tools -y
       - uses: swatinem/rust-cache@v2
       - name: cargo test
+        shell: bash
         run: cargo test --locked --workspace --all-features --all-targets
 
   check:
