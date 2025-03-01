@@ -1,18 +1,20 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{bail, Result};
 use iroh::endpoint::{Connection, VarInt};
 use iroh_quinn_proto::coding::Codec;
 use n0_future::task::{self, AbortOnDropHandle, JoinSet};
-use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::sync::{mpsc, Mutex};
-use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::sync::CancellationToken;
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    sync::{mpsc, Mutex},
+};
+use tokio_util::{
+    bytes::{Bytes, BytesMut},
+    sync::CancellationToken,
+};
 use tracing::{debug, error, trace, warn};
 
-use crate::receive_flow::ReceiveFlow;
-use crate::send_flow::SendFlow;
+use crate::{receive_flow::ReceiveFlow, send_flow::SendFlow};
 
 /// A RoQ session.
 #[derive(Debug, Clone)]
@@ -280,9 +282,8 @@ mod tests {
     use iroh::Endpoint;
     use rtp::packet::Packet as RtpPacket;
 
-    use crate::ALPN;
-
     use super::*;
+    use crate::ALPN;
 
     #[tokio::test]
     async fn test_datagram_flow() -> Result<()> {
