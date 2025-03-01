@@ -95,7 +95,7 @@ jobs:
             os: windows-latest
             target: windows-x86_64
             cargo_targets: "x86_64-pc-windows-msvc"
-            runner: [self-hosted, windows, X64]
+            runner: [windows-latest]
         channel:
           - "stable"
     steps:
