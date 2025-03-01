@@ -1,8 +1,7 @@
 use anyhow::Result;
 use iroh::Endpoint;
-use rtp::packet::Packet as RtpPacket;
-
 use iroh_roq::{Session, VarInt, ALPN};
+use rtp::packet::Packet as RtpPacket;
 use tokio_util::bytes::BytesMut;
 
 // 48000Hz * 1 channel * 20 ms / 1000 = 960

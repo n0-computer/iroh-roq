@@ -1,10 +1,8 @@
 use anyhow::{ensure, Result};
 use iroh_quinn_proto::VarInt;
-use tokio::sync::mpsc;
-use tokio_util::bytes::Bytes;
-use tokio_util::sync::CancellationToken;
-
 use rtp::packet::Packet as RtpPacket;
+use tokio::sync::mpsc;
+use tokio_util::{bytes::Bytes, sync::CancellationToken};
 use tracing::debug;
 use webrtc_util::Unmarshal;
 
