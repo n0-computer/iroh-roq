@@ -63,7 +63,7 @@ jobs:
       - name: Docs
         run: cargo doc --workspace --all-features --no-deps --document-private-items
 
-  test:
+  build_and_test:
     timeout-minutes: 30
     name: Build & Test
     runs-on: ${{ matrix.target.os }}
