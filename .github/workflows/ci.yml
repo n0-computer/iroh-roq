@@ -1,0 +1,159 @@
+name: tests
+
+on:
+  push:
+    branches:
+      # This helps fill the caches properly, caches are not shared between PRs.
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  MSRV: "1.81"
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -Dwarnings
+  IROH_FORCE_STAGING_RELAYS: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features
+
+  check_fmt:
+    timeout-minutes: 30
+    name: Checking fmt
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "on"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: mozilla-actions/sccache-action@v0.0.7
+      - uses: taiki-e/install-action@cargo-make
+      - run: cargo make format-check
+
+  check_docs:
+    timeout-minutes: 30
+    name: Checking docs
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "on"
+      RUSTDOCFLAGS: --cfg docsrs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2024-11-30
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Docs
+        run: cargo doc --workspace --all-features --no-deps --document-private-items
+
+  test:
+    runs-on: ${{ matrix.target.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-arm-latest
+            os: ubuntu-latest
+            target: linux-aarch64
+            cargo_targets: "aarch64-unknown-linux-musl"
+            runner: [self-hosted, linux, ARM64]
+          - name: ubuntu-latest
+            os: ubuntu-latest
+            target: linux-x86_64
+            cargo_targets: "x86_64-unknown-linux-musl"
+            runner: [self-hosted, linux, X64]
+          - name: macOS-latest
+            os: macOS-latest
+            target: darwin-x86_64
+            cargo_targets: "x86_64-apple-darwin"
+            runner: [self-hosted, macOS, ARM64]
+          - name: macOS-arm-latest
+            os: macOS-latest
+            target: darwin-aarch64
+            cargo_targets: "aarch64-apple-darwin"
+            runner: [self-hosted, macOS, ARM64]
+          - name: windows-latest
+            os: windows-latest
+            target: windows-x86_64
+            cargo_targets: "x86_64-pc-windows-msvc"
+            runner: [self-hosted, windows, X64]
+        channel:
+          - "stable"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.channel }}
+          targets: ${{ matrix.target.toolchain }}
+      - uses: swatinem/rust-cache@v2
+      - name: cargo test
+        run: cargo test --locked --workspace --all-features --bins --tests --examples
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - name: cargo check
+        run: cargo check --workspace --all-features --all-targets
+
+  
+  msrv:
+    timeout-minutes: 30
+    name: Minimal Supported Rust Version
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "on"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.MSRV }}
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Check MSRV all features
+        run: |
+          cargo +$MSRV check --workspace --all-targets
+
+  cargo_deny:
+    timeout-minutes: 30
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          arguments: --workspace --all-features
+          command: check
+          command-arguments: "-Dwarnings"
+
+  codespell:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --user codespell[toml]
+      - run: codespell --ignore-words-list=ans,atmost,crate,inout,ratatui,ser,stayin,swarmin,worl --skip=CHANGELOG.md
