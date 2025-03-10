@@ -74,7 +74,7 @@ impl Session {
         let mut receive_flows = self.receive_flows.lock().await;
         if let Some(flow) = receive_flows.get_mut(&id) {
             if let Some(receiver) = flow.incoming_flow.take() {
-                debug!(flow_id = %id, "found incoming flow");
+                trace!(flow_id = %id, "found incoming flow");
                 return Ok(receiver);
             } else {
                 bail!("duplicated flow ID: {}", id);
@@ -144,7 +144,7 @@ async fn run(
                                     warn!("failed to read from stream");
                                     return;
                                 };
-                                debug!(%flow_id, "incoming send flow");
+                                trace!(%flow_id, "incoming send flow");
 
                                 let mut flows = rf.lock().await;
                                 let sender = if let Some(flow) = flows.get(&flow_id) {
@@ -208,14 +208,14 @@ async fn run(
                 // handle datagram
                 match datagram {
                     Ok(mut bytes) => {
-                        debug!("received datagram: {} bytes", bytes.len());
+                        trace!("received datagram: {} bytes", bytes.len());
                         let Ok(flow_id) = VarInt::decode(&mut bytes) else {
                             warn!("invalid flow id");
                             continue;
                         };
                         let mut flows = receive_flows.lock().await;
                         if let Some(flow) = flows.get(&flow_id) {
-                            debug!(%flow_id, "found existing recv flow");
+                            trace!(%flow_id, "found existing recv flow");
                             if flow.cancel_token.is_cancelled() {
 
                                 flows.remove(&flow_id);
