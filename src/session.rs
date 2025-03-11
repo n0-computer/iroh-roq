@@ -3,7 +3,10 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{bail, Result};
 use iroh::endpoint::{Connection, VarInt};
 use iroh_quinn_proto::coding::Codec;
-use n0_future::task::{self, AbortOnDropHandle, JoinSet};
+use n0_future::{
+    task::{self, AbortOnDropHandle, JoinSet},
+    FuturesUnordered, StreamExt,
+};
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
     sync::{mpsc, Mutex},
@@ -28,7 +31,7 @@ pub struct Session {
 
 #[derive(Debug)]
 struct ReceiveFlowSender {
-    sender: mpsc::Sender<Bytes>,
+    sender: mpsc::Sender<Option<Bytes>>,
     /// Set to `Some` if this is a discovered flow.
     incoming_flow: Option<ReceiveFlow>,
     cancel_token: CancellationToken,
@@ -187,7 +190,7 @@ async fn run(
                                     let mut buffer = BytesMut::zeroed(len as usize);
                                     match recv.read_exact(&mut buffer).await {
                                         Ok(()) => {
-                                            sender.send(buffer.freeze()).await.ok();
+                                            sender.send(Some(buffer.freeze())).await.ok();
                                         }
                                         Err(err) => {
                                             warn!("failed to read: {:?}", err);
@@ -220,7 +223,7 @@ async fn run(
 
                                 flows.remove(&flow_id);
                                 debug!(%flow_id, "cleaning up closed recv flow");
-                            } else if let Err(err) = flow.sender.send(bytes).await {
+                            } else if let Err(err) = flow.sender.send(Some(bytes)).await {
                                 warn!(%flow_id, "failed to send to receiver: {:?}", err);
                             }
                         } else {
@@ -230,7 +233,7 @@ async fn run(
                             let cancel_token = cancel_token.child_token();
                             let flow = ReceiveFlow::new(flow_id, r, cancel_token.clone());
                             // store the newly received datagram
-                            s.send(bytes).await.expect("just created");
+                            s.send(Some(bytes)).await.expect("just created");
                             flows.insert(flow_id, ReceiveFlowSender {
                                 sender: s,
                                 incoming_flow: Some(flow),
@@ -246,6 +249,11 @@ async fn run(
             }
         }
     }
+    // send a close signal to all receive flows.
+    let flows = receive_flows.lock().await;
+    FuturesUnordered::from_iter(flows.values().map(|flow| flow.sender.send(None)))
+        .count()
+        .await;
 }
 
 /// Async read based reading of a `VarInt`.
