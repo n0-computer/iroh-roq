@@ -11,13 +11,13 @@ use webrtc_util::Unmarshal;
 pub struct ReceiveFlow {
     id: VarInt,
     cancel_token: CancellationToken,
-    datagram_receiver: mpsc::Receiver<Bytes>,
+    datagram_receiver: mpsc::Receiver<Option<Bytes>>,
 }
 
 impl ReceiveFlow {
     pub(crate) fn new(
         id: VarInt,
-        receiver: mpsc::Receiver<Bytes>,
+        receiver: mpsc::Receiver<Option<Bytes>>,
         cancel_token: CancellationToken,
     ) -> Self {
         Self {
@@ -35,7 +35,7 @@ impl ReceiveFlow {
     /// Reads the next available RTP packet.
     pub async fn read_rtp(&mut self) -> Result<RtpPacket> {
         ensure!(!self.cancel_token.is_cancelled(), "closed");
-        let Some(mut bytes) = self.datagram_receiver.recv().await else {
+        let Some(Some(mut bytes)) = self.datagram_receiver.recv().await else {
             return Err(anyhow::anyhow!("session is closed"));
         };
 
