@@ -1,5 +1,5 @@
 use anyhow::{ensure, Result};
-use iroh_quinn_proto::VarInt;
+use noq_proto::VarInt;
 use rtp::packet::Packet as RtpPacket;
 use tokio::sync::mpsc;
 use tokio_util::{bytes::Bytes, sync::CancellationToken};

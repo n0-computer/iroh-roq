@@ -1,6 +1,8 @@
 use anyhow::Result;
 use iroh::Endpoint;
-use iroh_roq::{Session, VarInt, ALPN};
+use iroh::endpoint::presets;
+use noq_proto::VarInt;
+use iroh_roq::{Session,  ALPN};
 use rtp::packet::Packet as RtpPacket;
 use tokio_util::bytes::BytesMut;
 
@@ -11,22 +13,21 @@ const MONO_20MS: usize = 48000 * 20 / 1000;
 #[test]
 fn test_opus_decode_encode() -> Result<()> {
     let mut opus_encoder =
-        opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip).unwrap();
-    let mut opus_decoder = opus::Decoder::new(48000, opus::Channels::Stereo).unwrap();
+        opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip)?;
+    let mut opus_decoder = opus::Decoder::new(48000, opus::Channels::Stereo)?;
     let mut pcm_raw_data = vec![17_i16; MONO_20MS * 2];
     pcm_raw_data[1] = 1;
 
     let mut encoded_opus = vec![0; 1500];
     let size = opus_encoder
-        .encode(&pcm_raw_data, &mut encoded_opus)
-        .unwrap();
+        .encode(&pcm_raw_data, &mut encoded_opus)?;
     let packet = &encoded_opus[..size];
 
     let mut output = vec![0i16; MONO_20MS * 2];
     // decode() returns the number of samples per channel.
     assert_eq!(
         MONO_20MS,
-        opus_decoder.decode(packet, &mut output, false).unwrap()
+        opus_decoder.decode(packet, &mut output, false)?
     );
 
     Ok(())
@@ -34,25 +35,25 @@ fn test_opus_decode_encode() -> Result<()> {
 
 #[tokio::test]
 async fn test_stream_opus_packets() -> Result<()> {
-    let ep1 = Endpoint::builder()
-        .bind_addr_v4("127.0.0.1:0".parse().unwrap())
+    let ep1 = Endpoint::builder(presets::Minimal)
+        .bind_addr("127.0.0.1:0")?
         .alpns(vec![ALPN.to_vec()])
         .bind()
         .await?;
-    let ep2 = Endpoint::builder()
-        .bind_addr_v4("127.0.0.1:0".parse().unwrap())
+    let ep2 = Endpoint::builder(presets::Minimal)
+        .bind_addr("127.0.0.1:0")?
         .alpns(vec![ALPN.to_vec()])
         .bind()
         .await?;
 
     let flow_id = VarInt::from_u32(0);
 
-    let ep2_addr = ep2.node_addr().await?;
+    let ep2_addr = ep2.addr();
 
     let _handle = tokio::task::spawn(async move {
         while let Some(incoming) = ep2.accept().await {
             if let Ok(connection) = incoming.await {
-                assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
+                assert_eq!(connection.alpn(), ALPN, "invalid ALPN");
 
                 let session = Session::new(connection);
                 let send_flow = session.new_send_flow(flow_id).await.unwrap();
@@ -81,11 +82,11 @@ async fn test_stream_opus_packets() -> Result<()> {
     let conn = ep1.connect(ep2_addr, ALPN).await?;
 
     let session = Session::new(conn.clone());
-    let send_flow = session.new_send_flow(flow_id).await.unwrap();
-    let mut recv_flow = session.new_receive_flow(flow_id).await.unwrap();
+    let send_flow = session.new_send_flow(flow_id).await?;
+    let mut recv_flow = session.new_receive_flow(flow_id).await?;
 
     let mut opus_encoder =
-        opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip).unwrap();
+        opus::Encoder::new(48000, opus::Channels::Stereo, opus::Application::Voip)?;
 
     let num_chunks = 8;
 
@@ -100,8 +101,7 @@ async fn test_stream_opus_packets() -> Result<()> {
         let end = start + chunk_size;
         pcm_raw_data[start + 1] = 1;
         let size = opus_encoder
-            .encode(&pcm_raw_data[start..end], &mut payload[..])
-            .unwrap();
+            .encode(&pcm_raw_data[start..end], &mut payload[..])?;
 
         payload.truncate(size);
 

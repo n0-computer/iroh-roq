@@ -1,6 +1,6 @@
 use anyhow::{ensure, Result};
-use iroh::endpoint::Connection;
-use iroh_quinn_proto::{coding::Codec, VarInt};
+use iroh::endpoint::{Connection, VarInt};
+use noq_proto::coding::Encodable;
 use rtp::packet::Packet as RtpPacket;
 use tokio_util::{bytes::BytesMut, sync::CancellationToken};
 use tracing::debug;
