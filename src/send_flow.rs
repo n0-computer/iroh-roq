@@ -1,8 +1,9 @@
 use anyhow::{ensure, Result};
-use iroh::endpoint::Connection;
-use iroh_quinn_proto::{coding::Codec, VarInt};
+use bytes::BytesMut;
+use iroh::endpoint::{Connection, VarInt};
+use noq_proto::coding::Encodable;
 use rtp::packet::Packet as RtpPacket;
-use tokio_util::{bytes::BytesMut, sync::CancellationToken};
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use webrtc_util::marshal::{Marshal, MarshalSize};
 
@@ -47,6 +48,28 @@ impl SendFlow {
         ensure!(n == marshal_size, "inconsistent packet marshal");
 
         self.conn.send_datagram(buf.freeze())?;
+
+        Ok(())
+    }
+
+    /// Send an RTP packet, waiting for datagram buffer space if needed.
+    ///
+    /// Prefer this for bursty media; [`Self::send_rtp`] is the original
+    /// non-blocking path kept for API compatibility with upstream.
+    pub async fn send_rtp_wait(&self, packet: &RtpPacket) -> Result<()> {
+        ensure!(!self.cancel_token.is_cancelled(), "flow is closed");
+
+        debug!(flow_id = %self.id, "send datagram RTP packet (wait)");
+
+        let mut buf = BytesMut::new();
+        self.id.encode(&mut buf);
+        let marshal_size = packet.marshal_size();
+        let id_len = buf.len();
+        buf.resize(id_len + marshal_size, 0);
+        let n = packet.marshal_to(&mut buf[id_len..])?;
+        ensure!(n == marshal_size, "inconsistent packet marshal");
+
+        self.conn.send_datagram_wait(buf.freeze()).await?;
 
         Ok(())
     }

@@ -1,7 +1,9 @@
 use anyhow::{ensure, Result};
-use iroh_quinn_proto::{coding::Codec, VarInt};
+use bytes::BytesMut;
+use iroh::endpoint::{SendStream as IrohSendStream, VarInt};
+use noq_proto::coding::Encodable;
 use rtp::packet::Packet as RtpPacket;
-use tokio_util::{bytes::BytesMut, sync::CancellationToken};
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use webrtc_util::marshal::{Marshal, MarshalSize};
 
@@ -9,7 +11,7 @@ use webrtc_util::marshal::{Marshal, MarshalSize};
 #[derive(Debug)]
 pub struct SendStream {
     id: VarInt,
-    stream: iroh::endpoint::SendStream,
+    stream: IrohSendStream,
     cancel_token: CancellationToken,
     /// Did we already send the flow id?
     /// This gets sent as the very first message, but we do this lazily
@@ -18,11 +20,7 @@ pub struct SendStream {
 }
 
 impl SendStream {
-    pub(crate) fn new(
-        id: VarInt,
-        stream: iroh::endpoint::SendStream,
-        cancel_token: CancellationToken,
-    ) -> Self {
+    pub(crate) fn new(id: VarInt, stream: IrohSendStream, cancel_token: CancellationToken) -> Self {
         Self {
             id,
             stream,
