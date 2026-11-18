@@ -1,17 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{bail, Result};
+use bytes::{Bytes, BytesMut};
 use iroh::endpoint::{Connection, VarInt};
-use iroh_quinn_proto::coding::Codec;
 use n0_future::task::{self, AbortOnDropHandle, JoinSet};
+use noq_proto::coding::Decodable;
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
     sync::{mpsc, Mutex},
 };
-use tokio_util::{
-    bytes::{Bytes, BytesMut},
-    sync::CancellationToken,
-};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace, warn};
 
 use crate::{receive_flow::ReceiveFlow, send_flow::SendFlow};
@@ -279,33 +277,38 @@ async fn read_varint<R: AsyncRead + Unpin>(conn: &mut R) -> Result<VarInt> {
 
 #[cfg(test)]
 mod tests {
-    use iroh::Endpoint;
+    use iroh::{endpoint::presets, Endpoint, RelayMode};
     use rtp::packet::Packet as RtpPacket;
 
     use super::*;
     use crate::ALPN;
 
+    async fn bind_pair() -> Result<(Endpoint, Endpoint)> {
+        let ep1 = Endpoint::builder(presets::Minimal)
+            .alpns(vec![ALPN.to_vec()])
+            .relay_mode(RelayMode::Disabled)
+            .bind()
+            .await?;
+        let ep2 = Endpoint::builder(presets::Minimal)
+            .alpns(vec![ALPN.to_vec()])
+            .relay_mode(RelayMode::Disabled)
+            .bind()
+            .await?;
+        Ok((ep1, ep2))
+    }
+
     #[tokio::test]
     async fn test_datagram_flow() -> Result<()> {
-        let ep1 = Endpoint::builder()
-            .bind_addr_v4("127.0.0.1:0".parse().unwrap())
-            .alpns(vec![ALPN.to_vec()])
-            .bind()
-            .await?;
-        let ep2 = Endpoint::builder()
-            .bind_addr_v4("127.0.0.1:0".parse().unwrap())
-            .alpns(vec![ALPN.to_vec()])
-            .bind()
-            .await?;
+        let (ep1, ep2) = bind_pair().await?;
 
         let flow_id = VarInt::from_u32(0);
 
-        let ep2_addr = ep2.node_addr().await?;
+        let ep2_addr = ep2.addr();
 
         let _handle = task::spawn(async move {
             while let Some(incoming) = ep2.accept().await {
                 if let Ok(connection) = incoming.await {
-                    assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
+                    assert_eq!(connection.alpn(), ALPN, "invalid ALPN");
 
                     let session = Session::new(connection);
                     let send_flow = session.new_send_flow(flow_id).await.unwrap();
@@ -341,25 +344,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_flow() -> Result<()> {
-        let ep1 = Endpoint::builder()
-            .bind_addr_v4("127.0.0.1:0".parse().unwrap())
-            .alpns(vec![ALPN.to_vec()])
-            .bind()
-            .await?;
-        let ep2 = Endpoint::builder()
-            .bind_addr_v4("127.0.0.1:0".parse().unwrap())
-            .alpns(vec![ALPN.to_vec()])
-            .bind()
-            .await?;
+        let (ep1, ep2) = bind_pair().await?;
 
         let flow_id = VarInt::from_u32(0);
 
-        let ep2_addr = ep2.node_addr().await?;
+        let ep2_addr = ep2.addr();
 
         let _handle = task::spawn(async move {
             while let Some(incoming) = ep2.accept().await {
                 if let Ok(connection) = incoming.await {
-                    assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
+                    assert_eq!(connection.alpn(), ALPN, "invalid ALPN");
 
                     let session = Session::new(connection);
                     let send_flow = session.new_send_flow(flow_id).await.unwrap();
@@ -389,6 +383,54 @@ mod tests {
             send_stream.send_rtp(&packet).await?;
             let incoming = recv_flow.read_rtp().await?;
             assert_eq!(packet, incoming);
+        }
+
+        Ok(())
+    }
+
+    /// Host integration: two in-process endpoints exchange 1000 RTP datagrams via RoQ.
+    #[tokio::test]
+    async fn test_datagram_flow_1000_packets() -> Result<()> {
+        let (ep1, ep2) = bind_pair().await?;
+        let flow_id = VarInt::from_u32(7);
+        let ep2_addr = ep2.addr();
+
+        let _handle = task::spawn(async move {
+            while let Some(incoming) = ep2.accept().await {
+                if let Ok(connection) = incoming.await {
+                    assert_eq!(connection.alpn(), ALPN, "invalid ALPN");
+                    let session = Session::new(connection);
+                    let send_flow = session.new_send_flow(flow_id).await.unwrap();
+                    let mut recv_flow = session.new_receive_flow(flow_id).await.unwrap();
+                    while let Ok(packet) = recv_flow.read_rtp().await {
+                        // Prefer wait under burst so DatagramsBlocked does not drop.
+                        send_flow.send_rtp_wait(&packet).await.unwrap();
+                    }
+                }
+            }
+        });
+
+        let conn = ep1.connect(ep2_addr, ALPN).await?;
+        let session = Session::new(conn);
+        let send_flow = session.new_send_flow(flow_id).await.unwrap();
+        let mut recv_flow = session.new_receive_flow(flow_id).await.unwrap();
+
+        for i in 0u16..1000 {
+            let marker = (i % 256) as u8;
+            let packet = RtpPacket {
+                header: rtp::header::Header {
+                    sequence_number: i,
+                    ..Default::default()
+                },
+                payload: vec![marker; 32].into(),
+            };
+            send_flow.send_rtp_wait(&packet).await?;
+            let incoming = recv_flow.read_rtp().await?;
+            assert_eq!(
+                packet.header.sequence_number,
+                incoming.header.sequence_number
+            );
+            assert_eq!(packet.payload, incoming.payload);
         }
 
         Ok(())

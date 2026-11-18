@@ -1,8 +1,8 @@
 use anyhow::Result;
-use iroh::Endpoint;
+use bytes::BytesMut;
+use iroh::{endpoint::presets, Endpoint, RelayMode};
 use iroh_roq::{Session, VarInt, ALPN};
 use rtp::packet::Packet as RtpPacket;
-use tokio_util::bytes::BytesMut;
 
 // 48000Hz * 1 channel * 20 ms / 1000 = 960
 const MONO_20MS: usize = 48000 * 20 / 1000;
@@ -34,25 +34,25 @@ fn test_opus_decode_encode() -> Result<()> {
 
 #[tokio::test]
 async fn test_stream_opus_packets() -> Result<()> {
-    let ep1 = Endpoint::builder()
-        .bind_addr_v4("127.0.0.1:0".parse().unwrap())
+    let ep1 = Endpoint::builder(presets::Minimal)
         .alpns(vec![ALPN.to_vec()])
+        .relay_mode(RelayMode::Disabled)
         .bind()
         .await?;
-    let ep2 = Endpoint::builder()
-        .bind_addr_v4("127.0.0.1:0".parse().unwrap())
+    let ep2 = Endpoint::builder(presets::Minimal)
         .alpns(vec![ALPN.to_vec()])
+        .relay_mode(RelayMode::Disabled)
         .bind()
         .await?;
 
     let flow_id = VarInt::from_u32(0);
 
-    let ep2_addr = ep2.node_addr().await?;
+    let ep2_addr = ep2.addr();
 
     let _handle = tokio::task::spawn(async move {
         while let Some(incoming) = ep2.accept().await {
             if let Ok(connection) = incoming.await {
-                assert_eq!(connection.alpn().unwrap(), ALPN, "invalid ALPN");
+                assert_eq!(connection.alpn(), ALPN, "invalid ALPN");
 
                 let session = Session::new(connection);
                 let send_flow = session.new_send_flow(flow_id).await.unwrap();
